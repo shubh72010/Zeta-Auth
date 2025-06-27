@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Zeta HS Staff Code Portal</title>
-  <!-- Optional: Tailwind CSS CDN (remove if not wanted) -->
+  <!-- Tailwind CSS CDN (Optional: remove this line if you want to use your own styles) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -43,8 +43,8 @@
     // ============================
     // CONFIGURATION
     // ============================
-    // TODO: Replace with your Google Client ID
-    const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE";
+    // Google OAuth 2.0 Client ID for Zeta HS Staff Portal
+    const GOOGLE_CLIENT_ID = "311933460614-af6evpkdm9u39qghujfk049ore5e15kp.apps.googleusercontent.com";
 
     // Allowed staff emails
     const allowedEmails = [
@@ -149,7 +149,6 @@
       const diffMs = nextHour - now;
       const diffSec = Math.floor(diffMs / 1000);
 
-      const h = String(Math.floor(diffSec / 3600)).padStart(2, '0');
       const m = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
       const s = String(diffSec % 60).padStart(2, '0');
       countdownEl.textContent = `${m}:${s}`;
@@ -162,6 +161,10 @@
       currentUser = null;
       if (timer) clearInterval(timer);
       showLoginView();
+      // Optional: revoke Google session (for extra privacy)
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        window.google.accounts.id.disableAutoSelect();
+      }
     });
 
     // ============================
@@ -169,7 +172,7 @@
     // ============================
     window.onload = function() {
       window.google.accounts.id.initialize({
-        client_id: 311933460614-af6evpkdm9u39qghujfk049ore5e15kp.apps.googleusercontent.com,
+        client_id: GOOGLE_CLIENT_ID,
         callback: onGoogleSignIn,
         ux_mode: "popup",
       });
