@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Zeta HS Staff Code Portal</title>
+  <!-- Optional: Tailwind CSS CDN (remove if not wanted) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <!-- LOGIN -->
+  <div id="login-view" class="w-full max-w-md bg-white rounded-lg shadow-md p-8 flex flex-col items-center gap-6">
+    <h1 class="text-2xl font-bold text-center">Zeta HS Staff Portal</h1>
+    <div id="g_id_signin"></div>
+    <div class="text-gray-500 text-sm text-center">Sign in with your Zeta staff Google account</div>
+  </div>
+
+  <!-- ACCESS DENIED -->
+  <div id="denied-view" class="w-full max-w-md bg-white rounded-lg shadow-md p-8 flex flex-col items-center gap-4 hidden">
+    <h1 class="text-xl font-bold text-red-600">Access Denied</h1>
+    <div class="text-gray-700 text-center">Your account is not authorized to access this portal.</div>
+  </div>
+
+  <!-- APP MAIN -->
+  <div id="app-view" class="w-full max-w-md bg-white rounded-lg shadow-md p-8 flex flex-col items-center gap-6 hidden">
+    <div class="text-gray-600 w-full flex justify-between items-center">
+      <span id="user-email" class="font-semibold"></span>
+      <button id="logout-btn" class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">Logout</button>
+    </div>
+    <div class="flex flex-col items-center gap-2 w-full">
+      <h2 class="text-2xl font-bold">Staff Code</h2>
+      <div id="staff-code" class="text-3xl font-extrabold tracking-widest bg-gray-100 px-8 py-3 rounded-lg shadow-inner select-all">----</div>
+      <div class="text-gray-500 text-sm">Use this code for Discord verification or role transfer</div>
+    </div>
+    <div class="flex flex-col items-center gap-1">
+      <span class="text-gray-700">Next code in:</span>
+      <span id="countdown" class="text-lg font-mono font-semibold"></span>
+    </div>
+  </div>
+
+  <script>
+    // ============================
+    // CONFIGURATION
+    // ============================
+    // TODO: Replace with your Google Client ID
+    const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID_HERE";
+
+    // Allowed staff emails
+    const allowedEmails = [
+      "flakes@zeta.com",
+      "xerz@zeta.com",
+      "admin@zeta.com"
+    ];
+
+    // Salt for code generation
+    const SECRET_SALT = "zeta-secret-salt";
+
+    // ============================
+    // UI ELEMENTS
+    // ============================
+    const loginView   = document.getElementById('login-view');
+    const deniedView  = document.getElementById('denied-view');
+    const appView     = document.getElementById('app-view');
+    const userEmailEl = document.getElementById('user-email');
+    const staffCodeEl = document.getElementById('staff-code');
+    const countdownEl = document.getElementById('countdown');
+    const logoutBtn   = document.getElementById('logout-btn');
+
+    let currentUser = null;
+    let timer = null;
+
+    // ============================
+    // GOOGLE SIGN-IN
+    // ============================
+    function onGoogleSignIn(response) {
+      // Decode JWT from Google
+      const idToken = response.credential;
+      const payload = JSON.parse(atob(idToken.split('.')[1]));
+
+      const email = payload.email;
+      const name  = payload.name;
+
+      if (!allowedEmails.includes(email)) {
+        showDeniedView();
+        return;
+      }
+      currentUser = { email, name };
+      showAppView();
+    }
+
+    function showLoginView() {
+      loginView.classList.remove('hidden');
+      deniedView.classList.add('hidden');
+      appView.classList.add('hidden');
+    }
+
+    function showDeniedView() {
+      loginView.classList.add('hidden');
+      deniedView.classList.remove('hidden');
+      appView.classList.add('hidden');
+      currentUser = null;
+    }
+
+    function showAppView() {
+      loginView.classList.add('hidden');
+      deniedView.classList.add('hidden');
+      appView.classList.remove('hidden');
+      userEmailEl.textContent = `Welcome, ${currentUser.email}`;
+      updateStaffCodeAndTimer();
+      if (timer) clearInterval(timer);
+      timer = setInterval(updateStaffCodeAndTimer, 1000);
+    }
+
+    // ============================
+    // STAFF CODE GENERATION
+    // ============================
+    async function generateStaffCode() {
+      const now = new Date();
+      const year  = now.getUTCFullYear();
+      const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+      const date  = String(now.getUTCDate()).padStart(2, '0');
+      const hour  = String(now.getUTCHours()).padStart(2, '0');
+      const seed  = `${year}-${month}-${date}-${hour}${SECRET_SALT}`;
+
+      // SHA-256 hash using Web Crypto API
+      const encoder = new TextEncoder();
+      const data = encoder.encode(seed);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Format: ZETA-XXXX-YYYY (take 8 chars from hash)
+      const code = `ZETA-${hex.substr(0,4).toUpperCase()}-${hex.substr(4,4).toUpperCase()}`;
+      return code;
+    }
+
+    // ============================
+    // COUNTDOWN LOGIC
+    // ============================
+    async function updateStaffCodeAndTimer() {
+      const code = await generateStaffCode();
+      staffCodeEl.textContent = code;
+
+      const now = new Date();
+      const nextHour = new Date(Date.UTC(
+        now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() + 1, 0, 0, 0
+      ));
+      const diffMs = nextHour - now;
+      const diffSec = Math.floor(diffMs / 1000);
+
+      const h = String(Math.floor(diffSec / 3600)).padStart(2, '0');
+      const m = String(Math.floor((diffSec % 3600) / 60)).padStart(2, '0');
+      const s = String(diffSec % 60).padStart(2, '0');
+      countdownEl.textContent = `${m}:${s}`;
+    }
+
+    // ============================
+    // LOGOUT
+    // ============================
+    logoutBtn.addEventListener('click', () => {
+      currentUser = null;
+      if (timer) clearInterval(timer);
+      showLoginView();
+    });
+
+    // ============================
+    // INIT GOOGLE BUTTON
+    // ============================
+    window.onload = function() {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: onGoogleSignIn,
+        ux_mode: "popup",
+      });
+      window.google.accounts.id.renderButton(
+        document.getElementById("g_id_signin"),
+        { theme: "outline", size: "large", width: 250 }
+      );
+      window.google.accounts.id.prompt(); // Optional: triggers One Tap
+    };
+
+  </script>
+</body>
+</html>
